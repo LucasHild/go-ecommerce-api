@@ -1,7 +1,9 @@
 package api
 
+import "github.com/go-bongo/bongo"
+
 type Product struct {
-	ID    string  `json:"id"`
-	Title string  `json:"title"`
-	Price float64 `json:"price"`
+	bongo.DocumentBase `bson:",inline"`
+	Title              string  `json:"title"`
+	Price              float64 `json:"price"`
 }

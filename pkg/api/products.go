@@ -6,13 +6,17 @@ import (
 	"net/http"
 )
 
-var products []Product
-
 type GetProductsResponse struct {
 	Products []Product `json:"products"`
 }
 
 func GetProducts(w http.ResponseWriter, r *http.Request) {
+	products := []Product{}
+	results := DBConnection.Collection("product").Find(nil)
+	product := &Product{}
+	for results.Next(product) {
+		products = append(products, *product)
+	}
 	response := GetProductsResponse{Products: products}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -38,7 +42,11 @@ func AddProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	products = append(products, product)
+	err = DBConnection.Collection("product").Save(&product)
+	if err != nil {
+		log.Fatalln("Error saving product to DB", err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 
 	response := AddProductResponse{Product: product}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")

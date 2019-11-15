@@ -8,6 +8,8 @@ import (
 )
 
 func Start() error {
+	connectToDB()
+
 	router := mux.NewRouter()
 	router.HandleFunc("/", HomeHandler)
 	router.HandleFunc("/products", GetProducts).Methods("GET")
