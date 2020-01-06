@@ -2,18 +2,25 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
 
+// Start the API server
 func Start() error {
+	fmt.Println("Connecting to db ...")
 	connectToDB()
 
 	router := mux.NewRouter()
 	router.HandleFunc("/", HomeHandler)
 	router.HandleFunc("/products", GetProducts).Methods("GET")
 	router.HandleFunc("/products", AddProduct).Methods("POST")
+
+	router.Use(JWTAuthentication)
+
+	fmt.Println("Running API on http://localhost:8080")
 	http.ListenAndServe(":8080", router)
 	return nil
 }
