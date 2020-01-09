@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/Kamva/mgm"
+	"github.com/globalsign/mgo/bson"
 )
 
 type GetProductsResponse struct {
@@ -12,15 +15,15 @@ type GetProductsResponse struct {
 
 func GetProducts(w http.ResponseWriter, r *http.Request) {
 	products := []Product{}
-	results := DBConnection.Collection("product").Find(nil)
-	product := &Product{}
-	for results.Next(product) {
-		products = append(products, *product)
+	err := mgm.Coll(&Product{}).SimpleFind(&products, bson.M{})
+	if err != nil {
+		log.Fatalln(err)
 	}
+
 	response := GetProductsResponse{Products: products}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	err := json.NewEncoder(w).Encode(response)
+	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		log.Fatalln("Error marshalling data", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -42,7 +45,7 @@ func AddProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = DBConnection.Collection("product").Save(&product)
+	err = mgm.Coll(&product).Create(&product)
 	if err != nil {
 		log.Fatalln("Error saving product to DB", err)
 		w.WriteHeader(http.StatusInternalServerError)

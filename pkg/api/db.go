@@ -3,21 +3,13 @@ package api
 import (
 	"log"
 
-	"github.com/go-bongo/bongo"
+	"github.com/Kamva/mgm"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// DBConnection is the connection handle for the database
-var DBConnection *bongo.Connection
-
 func connectToDB() {
-	config := &bongo.Config{
-		ConnectionString: "localhost",
-		Database:         "go-ecommerce-api",
-	}
-
-	connection, err := bongo.Connect(config)
+	err := mgm.SetDefaultConfig(nil, "go-ecommerce-api", options.Client().ApplyURI("mongodb://localhost"))
 	if err != nil {
 		log.Fatalln("Can't connect to database", err)
 	}
-	DBConnection = connection
 }
