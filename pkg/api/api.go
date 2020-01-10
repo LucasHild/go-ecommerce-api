@@ -17,6 +17,7 @@ func Start() error {
 	router.HandleFunc("/", HomeHandler)
 	router.HandleFunc("/products", GetProducts).Methods("GET")
 	router.HandleFunc("/products", AddProduct).Methods("POST")
+	router.HandleFunc("/signup", SignUpHandler).Methods("POST")
 
 	router.Use(JWTAuthentication)
 
