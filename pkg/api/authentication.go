@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
+
+	"github.com/dgrijalva/jwt-go"
 
 	"github.com/Kamva/mgm"
 	"github.com/globalsign/mgo/bson"
@@ -48,8 +51,8 @@ func SignUpHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&account)
 	if err != nil {
-		log.Fatalln("Error unmarshalling data", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusBadRequest)
+		RespondWithMessage(w, "Invalid JSON Payload")
 		return
 	}
 
@@ -91,4 +94,65 @@ func SignUp(email string, password string, w http.ResponseWriter) {
 	}
 
 	RespondWithMessage(w, "Successfully created account")
+}
+
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	var account Account
+
+	err := json.NewDecoder(r.Body).Decode(&account)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		RespondWithMessage(w, "Invalid JSON Payload")
+		return
+	}
+
+	account, err = Login(account.Email, account.Password, w)
+	if err != nil {
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	err = json.NewEncoder(w).Encode(account)
+	if err != nil {
+		log.Fatalln("Error marshalling data", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func Login(email string, password string, w http.ResponseWriter) (Account, error) {
+	var account Account
+
+	err := mgm.Coll(&account).First(bson.M{"email": email}, &account)
+	if err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		RespondWithMessage(w, "Account doesn't exist. Please try again")
+		return Account{}, err
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(password))
+	if err != nil && err == bcrypt.ErrMismatchedHashAndPassword {
+		w.WriteHeader(http.StatusForbidden)
+		RespondWithMessage(w, "Invalid login credentials. Please try again")
+		return Account{}, err
+	}
+
+	err = createToken(&account)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		RespondWithMessage(w, "An error occured")
+		return Account{}, err
+	}
+	return account, nil
+}
+
+func createToken(account *Account) error {
+	account.Password = ""
+
+	tokenClaims := &TokenClaims{UserID: account.ID.Hex()}
+	token := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), tokenClaims)
+	tokenString, _ := token.SignedString([]byte(os.Getenv("SECRET_KEY")))
+
+	account.Token = tokenString
+	return nil
 }

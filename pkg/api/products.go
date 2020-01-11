@@ -40,8 +40,8 @@ func AddProduct(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&product)
 	if err != nil {
-		log.Fatalln("Error unmarshalling data", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusBadRequest)
+		RespondWithMessage(w, "Invalid JSON Payload")
 		return
 	}
 
