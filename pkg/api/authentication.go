@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -20,6 +19,23 @@ import (
 // https://medium.com/@adigunhammedolalekan/build-and-deploy-a-secure-rest-api-with-go-postgresql-jwt-and-gorm-6fadf3da505b
 func JWTAuthentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		type Route struct {
+			Path   string
+			Method string
+		}
+
+		notAuthRoutes := []Route{
+			Route{"/login", "POST"},
+			Route{"/signup", "POST"},
+			Route{"/products", "GET"},
+		}
+		for _, value := range notAuthRoutes {
+			if value.Path == r.URL.Path && value.Method == r.Method {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
 		tokenHeader := r.Header.Get("Authorization")
 
 		if tokenHeader == "" {
@@ -31,14 +47,30 @@ func JWTAuthentication(next http.Handler) http.Handler {
 		splitted := strings.Split(tokenHeader, " ")
 		if len(splitted) != 2 {
 			w.WriteHeader(http.StatusForbidden)
+			RespondWithMessage(w, "Malformed auth token")
+			return
+		}
+
+		tokenString := splitted[1]
+		tokenClaims := &TokenClaims{}
+		token, err := jwt.ParseWithClaims(tokenString, tokenClaims, func(token *jwt.Token) (interface{}, error) {
+			return config.secretKey, nil
+		})
+		if err != nil {
+			w.WriteHeader(http.StatusForbidden)
+			RespondWithMessage(w, "Malformed auth token")
+			return
+		}
+
+		if !token.Valid {
+			w.WriteHeader(http.StatusForbidden)
 			RespondWithMessage(w, "Invalid auth token")
 			return
 		}
 
-		token := splitted[1]
-		fmt.Println("Token", token)
+		// TODO: Check whether user still exists
 
-		ctx := context.WithValue(r.Context(), "user", "EXAMPLE_USER_ID")
+		ctx := context.WithValue(r.Context(), "userID", tokenClaims.UserID)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)
