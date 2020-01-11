@@ -45,6 +45,8 @@ func AddProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	product.CreatedBy = r.Context().Value("userID").(string)
+
 	err = mgm.Coll(&product).Create(&product)
 	if err != nil {
 		log.Fatalln("Error saving product to DB", err)

@@ -9,4 +9,5 @@ type Product struct {
 	mgm.DefaultModel `bson:",inline"`
 	Title            string  `json:"title"`
 	Price            float64 `json:"price"`
+	CreatedBy        string  `json:"created_by"`
 }
