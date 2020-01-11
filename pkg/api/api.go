@@ -12,6 +12,7 @@ import (
 func Start() error {
 	fmt.Println("Connecting to db ...")
 	connectToDB()
+	config.load()
 
 	router := mux.NewRouter()
 	router.HandleFunc("/", HomeHandler)
