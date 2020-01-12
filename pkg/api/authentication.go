@@ -15,8 +15,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type key int
+
+const (
+	contextKeyUserID key = iota
+)
+
 // JWTAuthentication is a middleware that checks authentication
-// https://medium.com/@adigunhammedolalekan/build-and-deploy-a-secure-rest-api-with-go-postgresql-jwt-and-gorm-6fadf3da505b
 func JWTAuthentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		type Route struct {
@@ -70,7 +75,7 @@ func JWTAuthentication(next http.Handler) http.Handler {
 
 		// TODO: Check whether user still exists
 
-		ctx := context.WithValue(r.Context(), "userID", tokenClaims.UserID)
+		ctx := context.WithValue(r.Context(), contextKeyUserID, tokenClaims.UserID)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)
@@ -78,6 +83,7 @@ func JWTAuthentication(next http.Handler) http.Handler {
 	})
 }
 
+// SignUpHandler handles user sign up
 func SignUpHandler(w http.ResponseWriter, r *http.Request) {
 	var account Account
 
@@ -88,10 +94,10 @@ func SignUpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	SignUp(account.Email, account.Password, w)
+	signUp(account.Email, account.Password, w)
 }
 
-func SignUp(email string, password string, w http.ResponseWriter) {
+func signUp(email string, password string, w http.ResponseWriter) {
 	if len(password) < 8 {
 		w.WriteHeader(http.StatusBadRequest)
 		RespondWithMessage(w, "The password has to have at least 8 characters")
@@ -128,6 +134,7 @@ func SignUp(email string, password string, w http.ResponseWriter) {
 	RespondWithMessage(w, "Successfully created account")
 }
 
+// LoginHandler handles user login
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var account Account
 
@@ -138,7 +145,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, err = Login(account.Email, account.Password, w)
+	account, err = login(account.Email, account.Password, w)
 	if err != nil {
 		return
 	}
@@ -152,7 +159,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Login(email string, password string, w http.ResponseWriter) (Account, error) {
+func login(email string, password string, w http.ResponseWriter) (Account, error) {
 	var account Account
 
 	err := mgm.Coll(&account).First(bson.M{"email": email}, &account)

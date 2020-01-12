@@ -9,11 +9,13 @@ import (
 	"github.com/globalsign/mgo/bson"
 )
 
+// GetProductsResponse is a response for GetProductsHandler
 type GetProductsResponse struct {
 	Products []Product `json:"products"`
 }
 
-func GetProducts(w http.ResponseWriter, r *http.Request) {
+// GetProductsHandler returns all products
+func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 	products := []Product{}
 	err := mgm.Coll(&Product{}).SimpleFind(&products, bson.M{})
 	if err != nil {
@@ -31,11 +33,13 @@ func GetProducts(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// AddProductResponse is a response for AddProductHandler
 type AddProductResponse struct {
 	Product Product `json:"product"`
 }
 
-func AddProduct(w http.ResponseWriter, r *http.Request) {
+// AddProductHandler creates a new product
+func AddProductHandler(w http.ResponseWriter, r *http.Request) {
 	var product Product
 
 	err := json.NewDecoder(r.Body).Decode(&product)
@@ -45,7 +49,7 @@ func AddProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	product.CreatedBy = r.Context().Value("userID").(string)
+	product.CreatedBy = r.Context().Value(contextKeyUserID).(string)
 
 	err = mgm.Coll(&product).Create(&product)
 	if err != nil {

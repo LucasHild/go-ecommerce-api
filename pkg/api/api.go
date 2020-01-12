@@ -16,8 +16,8 @@ func Start() error {
 
 	router := mux.NewRouter()
 	router.HandleFunc("/", HomeHandler)
-	router.HandleFunc("/products", GetProducts).Methods("GET")
-	router.HandleFunc("/products", AddProduct).Methods("POST")
+	router.HandleFunc("/products", GetProductsHandler).Methods("GET")
+	router.HandleFunc("/products", AddProductHandler).Methods("POST")
 	router.HandleFunc("/login", LoginHandler).Methods("POST")
 	router.HandleFunc("/signup", SignUpHandler).Methods("POST")
 
@@ -28,13 +28,15 @@ func Start() error {
 	return nil
 }
 
-type IndexResponse struct {
+// HomeResponse is a response for HomeHandler
+type HomeResponse struct {
 	Project string `json:"project"`
 	Version string `json:"version"`
 }
 
+// HomeHandler gives basic details about API
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	response := IndexResponse{
+	response := HomeResponse{
 		Project: "go-ecommerce-api",
 		Version: "v0",
 	}
