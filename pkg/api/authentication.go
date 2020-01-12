@@ -94,17 +94,17 @@ func SignUpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = account.validate()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		RespondWithMessage(w, err.Error())
+		return
+	}
+
 	signUp(account.Email, account.Password, w)
 }
 
 func signUp(email string, password string, w http.ResponseWriter) {
-	if len(password) < 8 {
-		w.WriteHeader(http.StatusBadRequest)
-		RespondWithMessage(w, "The password has to have at least 8 characters")
-		return
-	}
-	// TODO: Email validation
-
 	var existingAccounts = []Account{}
 	err := mgm.Coll(&Account{}).SimpleFind(&existingAccounts, bson.M{"email": email})
 	if err != nil {

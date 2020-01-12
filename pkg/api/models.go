@@ -1,6 +1,9 @@
 package api
 
 import (
+	"errors"
+	"regexp"
+
 	"github.com/Kamva/mgm"
 	"github.com/dgrijalva/jwt-go"
 )
@@ -17,6 +20,19 @@ type Account struct {
 	Email            string `json:"email"`
 	Password         string `json:"password"`
 	Token            string `json:"token"`
+}
+
+func (a Account) validate() error {
+	emailRe := regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
+	if !emailRe.MatchString(a.Email) {
+		return errors.New("The email address is invalid")
+	}
+
+	if len(a.Password) < 8 {
+		return errors.New("The password has to have at least 8 characters")
+	}
+
+	return nil
 }
 
 // Product is a sellable element
