@@ -49,6 +49,13 @@ func AddProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = product.validate()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		RespondWithMessage(w, err.Error())
+		return
+	}
+
 	product.CreatedBy = r.Context().Value(contextKeyUserID).(string)
 
 	err = mgm.Coll(&product).Create(&product)
