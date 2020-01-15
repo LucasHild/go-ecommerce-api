@@ -29,18 +29,6 @@ func JWTAuthentication(next http.Handler) http.Handler {
 			Method string
 		}
 
-		notAuthRoutes := []Route{
-			Route{"/login", "POST"},
-			Route{"/signup", "POST"},
-			Route{"/products", "GET"},
-		}
-		for _, value := range notAuthRoutes {
-			if value.Path == r.URL.Path && value.Method == r.Method {
-				next.ServeHTTP(w, r)
-				return
-			}
-		}
-
 		tokenHeader := r.Header.Get("Authorization")
 
 		if tokenHeader == "" {

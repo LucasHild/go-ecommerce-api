@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi"
 )
 
 // Start the API server
@@ -14,14 +14,18 @@ func Start() error {
 	connectToDB()
 	config.load()
 
-	router := mux.NewRouter()
-	router.HandleFunc("/", HomeHandler)
-	router.HandleFunc("/products", GetProductsHandler).Methods("GET")
-	router.HandleFunc("/products", AddProductHandler).Methods("POST")
-	router.HandleFunc("/login", LoginHandler).Methods("POST")
-	router.HandleFunc("/signup", SignUpHandler).Methods("POST")
+	router := chi.NewRouter()
+	needsAuthenticationGroup := router.Group(nil)
+	needsAuthenticationGroup.Use(JWTAuthentication)
 
-	router.Use(JWTAuthentication)
+	router.Get("/", HomeHandler)
+
+	router.Get("/products", GetProductsHandler)
+	needsAuthenticationGroup.Post("/products", AddProductHandler)
+	router.Get("/products/{id}", GetProductHandler)
+
+	router.Post("/login", LoginHandler)
+	router.Post("/signup", SignUpHandler)
 
 	fmt.Println("Running API on http://localhost:8080")
 	http.ListenAndServe(":8080", router)

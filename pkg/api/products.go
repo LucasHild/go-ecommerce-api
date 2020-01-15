@@ -7,6 +7,7 @@ import (
 
 	"github.com/Kamva/mgm"
 	"github.com/globalsign/mgo/bson"
+	"github.com/go-chi/chi"
 )
 
 // GetProductsResponse is a response for GetProductsHandler
@@ -65,6 +66,34 @@ func AddProductHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := AddProductResponse{Product: product}
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		log.Fatalln("Error marshalling data", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+// GetProductResponse is a response for GetProductHandler
+type GetProductResponse struct {
+	Product Product `json:"product"`
+}
+
+// GetProductHandler returns product by id
+func GetProductHandler(w http.ResponseWriter, r *http.Request) {
+	productID := chi.URLParam(r, "id")
+
+	product := Product{}
+	err := mgm.Coll(&product).FindByID(productID, &product)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		RespondWithMessage(w, "A product with this ID doesn't exist")
+		return
+	}
+
+	response := GetProductResponse{Product: product}
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
