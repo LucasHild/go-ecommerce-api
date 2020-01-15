@@ -97,7 +97,7 @@ func signUp(email string, password string, w http.ResponseWriter) {
 	err := mgm.Coll(&Account{}).SimpleFind(&existingAccounts, bson.M{"email": email})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		RespondWithMessage(w, "An error occured")
+		RespondWithMessage(w, "An error occurred")
 		return
 	}
 	if len(existingAccounts) != 0 {
@@ -167,7 +167,7 @@ func login(email string, password string, w http.ResponseWriter) (Account, error
 	err = createToken(&account)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		RespondWithMessage(w, "An error occured")
+		RespondWithMessage(w, "An error occurred")
 		return Account{}, err
 	}
 	return account, nil

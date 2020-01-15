@@ -23,6 +23,7 @@ func Start() error {
 	router.Get("/products", GetProductsHandler)
 	needsAuthenticationGroup.Post("/products", AddProductHandler)
 	router.Get("/products/{id}", GetProductHandler)
+	needsAuthenticationGroup.Delete("/products/{id}", DeleteProductHandler)
 
 	router.Post("/login", LoginHandler)
 	router.Post("/signup", SignUpHandler)

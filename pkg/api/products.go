@@ -102,3 +102,31 @@ func GetProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+// DeleteProductHandler deletes a product
+func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
+	productID := chi.URLParam(r, "id")
+
+	product := Product{}
+	err := mgm.Coll(&product).FindByID(productID, &product)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		RespondWithMessage(w, "A product with this ID doesn't exist")
+		return
+	}
+
+	if product.CreatedBy != r.Context().Value(contextKeyUserID).(string) {
+		w.WriteHeader(http.StatusForbidden)
+		RespondWithMessage(w, "Only the author of the product can delete it")
+		return
+	}
+
+	err = mgm.Coll(&product).Delete(&product)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		RespondWithMessage(w, "An error occurred")
+		return
+	}
+
+	RespondWithMessage(w, "Deleted product successfully")
+}
