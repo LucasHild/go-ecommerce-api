@@ -27,6 +27,8 @@ func Start() error {
 
 	router.Post("/login", LoginHandler)
 	router.Post("/signup", SignUpHandler)
+	router.Get("/auth/google/login", AuthGoogleLogin)
+	router.Get("/auth/google/redirect", AuthGoogleRedirect)
 
 	fmt.Println("Running API on http://localhost:8080")
 	http.ListenAndServe(":8080", router)
