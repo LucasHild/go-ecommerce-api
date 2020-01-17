@@ -6,13 +6,30 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/gorilla/sessions"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
+
+var cookieStore *sessions.CookieStore
+var googleOauthConf *oauth2.Config
 
 // Start the API server
 func Start() error {
 	fmt.Println("Connecting to db ...")
 	connectToDB()
 	config.load()
+
+	cookieStore = sessions.NewCookieStore(config.sessionKey)
+	googleOauthConf = &oauth2.Config{
+		ClientID:     config.googleOauthClientID,
+		ClientSecret: config.googleOauthClientSecret,
+		RedirectURL:  "http://127.0.0.1:8080/auth/google/redirect",
+		Scopes: []string{
+			"https://www.googleapis.com/auth/userinfo.email",
+		},
+		Endpoint: google.Endpoint,
+	}
 
 	router := chi.NewRouter()
 	needsAuthenticationGroup := router.Group(nil)

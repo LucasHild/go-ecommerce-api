@@ -19,8 +19,9 @@ type TokenClaims struct {
 type Account struct {
 	mgm.DefaultModel `bson:",inline"`
 	Email            string `json:"email"`
-	Password         string `json:"password"`
+	Password         string `json:"-"`
 	Token            string `json:"token"`
+	GoogleUserID     string `json:"-" bson:"google_user_id"`
 }
 
 func (a Account) validate() error {
