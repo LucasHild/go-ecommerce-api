@@ -19,8 +19,8 @@ var googleOauthConf *oauth2.Config
 // Start the API server
 func Start() error {
 	fmt.Println("Connecting to db ...")
-	connectToDB()
 	config.load()
+	connectToDB()
 
 	cookieStore = sessions.NewCookieStore(config.sessionKey)
 	googleOauthConf = &oauth2.Config{
