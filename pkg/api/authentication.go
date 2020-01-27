@@ -28,13 +28,7 @@ const (
 // JWTAuthentication is a middleware that checks authentication
 func JWTAuthentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		type Route struct {
-			Path   string
-			Method string
-		}
-
 		tokenHeader := r.Header.Get("Authorization")
-
 		if tokenHeader == "" {
 			RespondWithMessage(w, http.StatusForbidden, "Missing auth token")
 			return
@@ -61,7 +55,13 @@ func JWTAuthentication(next http.Handler) http.Handler {
 			return
 		}
 
-		// TODO: Check whether user still exists
+		var account Account
+		err = mgm.Coll(&Account{}).FindByID(tokenClaims.UserID, &account)
+		if err != nil {
+			log.Println(err)
+			RespondWithMessage(w, http.StatusForbidden, "This account doesn't exist")
+			return
+		}
 
 		ctx := context.WithValue(r.Context(), contextKeyUserID, tokenClaims.UserID)
 		r = r.WithContext(ctx)
@@ -71,6 +71,7 @@ func JWTAuthentication(next http.Handler) http.Handler {
 	})
 }
 
+// UserCredentials are used for signup and login
 type UserCredentials struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
