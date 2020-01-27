@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 )
@@ -9,10 +8,10 @@ import (
 var config Config = Config{}
 
 // RespondWithMessage sends message string to response writer
-func RespondWithMessage(w http.ResponseWriter, message string) {
-	data := map[string]interface{}{"message": message}
-	w.Header().Add("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+func RespondWithMessage(w http.ResponseWriter, status int, message string) {
+	rnd.JSON(w, status, map[string]string{
+		"message": message,
+	})
 }
 
 // Config stores application configuration

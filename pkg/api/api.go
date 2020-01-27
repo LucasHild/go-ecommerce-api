@@ -1,9 +1,10 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/unrolled/render"
 
 	"github.com/go-chi/chi"
 	"github.com/gorilla/sessions"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+var rnd *render.Render
 var cookieStore *sessions.CookieStore
 var googleOauthConf *oauth2.Config
 
@@ -30,6 +32,8 @@ func Start() error {
 		},
 		Endpoint: google.Endpoint,
 	}
+
+	rnd = render.New(render.Options{})
 
 	router := chi.NewRouter()
 	needsAuthenticationGroup := router.Group(nil)
@@ -52,18 +56,10 @@ func Start() error {
 	return nil
 }
 
-// HomeResponse is a response for HomeHandler
-type HomeResponse struct {
-	Project string `json:"project"`
-	Version string `json:"version"`
-}
-
 // HomeHandler gives basic details about API
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	response := HomeResponse{
-		Project: "go-ecommerce-api",
-		Version: "v0",
-	}
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	json.NewEncoder(w).Encode(response)
+	rnd.JSON(w, http.StatusOK, map[string]string{
+		"project": "go-ecommerce-api",
+		"version": "v0",
+	})
 }

@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"math"
-	"regexp"
 
 	"github.com/Kamva/mgm"
 	"github.com/dgrijalva/jwt-go"
@@ -16,25 +15,12 @@ type TokenClaims struct {
 }
 
 // Account is used to store user information
+// TODO: Rename to user
 type Account struct {
 	mgm.DefaultModel `bson:",inline"`
 	Email            string `json:"email"`
 	Password         string `json:"-"`
-	Token            string `json:"token"`
 	GoogleUserID     string `json:"-" bson:"google_user_id"`
-}
-
-func (a Account) validate() error {
-	emailRe := regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
-	if !emailRe.MatchString(a.Email) {
-		return errors.New("The email address is invalid")
-	}
-
-	if len(a.Password) < 8 {
-		return errors.New("The password has to have at least 8 characters")
-	}
-
-	return nil
 }
 
 // Product is a sellable element

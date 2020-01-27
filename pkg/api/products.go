@@ -23,20 +23,9 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatalln(err)
 	}
 
-	response := GetProductsResponse{Products: products}
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
-		log.Fatalln("Error marshalling data", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-}
-
-// AddProductResponse is a response for AddProductHandler
-type AddProductResponse struct {
-	Product Product `json:"product"`
+	rnd.JSON(w, http.StatusOK, map[string]interface{}{
+		"products": products,
+	})
 }
 
 // AddProductHandler creates a new product
@@ -45,15 +34,13 @@ func AddProductHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&product)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		RespondWithMessage(w, "Invalid JSON Payload")
+		RespondWithMessage(w, http.StatusBadRequest, "Invalid JSON Payload")
 		return
 	}
 
 	err = product.validate()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		RespondWithMessage(w, err.Error())
+		RespondWithMessage(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -62,17 +49,12 @@ func AddProductHandler(w http.ResponseWriter, r *http.Request) {
 	err = mgm.Coll(&product).Create(&product)
 	if err != nil {
 		log.Fatalln("Error saving product to DB", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
 	}
 
-	response := AddProductResponse{Product: product}
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
-		log.Fatalln("Error marshalling data", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	rnd.JSON(w, http.StatusOK, map[string]interface{}{
+		"product": product,
+	})
 }
 
 // GetProductResponse is a response for GetProductHandler
@@ -84,23 +66,16 @@ type GetProductResponse struct {
 func GetProductHandler(w http.ResponseWriter, r *http.Request) {
 	productID := chi.URLParam(r, "id")
 
-	product := Product{}
+	var product Product
 	err := mgm.Coll(&product).FindByID(productID, &product)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		RespondWithMessage(w, "A product with this ID doesn't exist")
+		RespondWithMessage(w, http.StatusNotFound, "A product with this ID doesn't exist")
 		return
 	}
 
-	response := GetProductResponse{Product: product}
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
-		log.Fatalln("Error marshalling data", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	rnd.JSON(w, http.StatusOK, map[string]interface{}{
+		"product": product,
+	})
 }
 
 // DeleteProductHandler deletes a product
@@ -110,23 +85,20 @@ func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	product := Product{}
 	err := mgm.Coll(&product).FindByID(productID, &product)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		RespondWithMessage(w, "A product with this ID doesn't exist")
+		RespondWithMessage(w, http.StatusNotFound, "A product with this ID doesn't exist")
 		return
 	}
 
 	if product.CreatedBy != r.Context().Value(contextKeyUserID).(string) {
-		w.WriteHeader(http.StatusForbidden)
-		RespondWithMessage(w, "Only the author of the product can delete it")
+		RespondWithMessage(w, http.StatusForbidden, "Only the author of the product can delete it")
 		return
 	}
 
 	err = mgm.Coll(&product).Delete(&product)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		RespondWithMessage(w, "An error occurred")
+		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
 		return
 	}
 
-	RespondWithMessage(w, "Deleted product successfully")
+	RespondWithMessage(w, http.StatusOK, "Deleted product successfully")
 }

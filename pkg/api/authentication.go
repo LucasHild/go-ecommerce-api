@@ -5,9 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
-	"os"
+	"regexp"
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
@@ -35,15 +36,13 @@ func JWTAuthentication(next http.Handler) http.Handler {
 		tokenHeader := r.Header.Get("Authorization")
 
 		if tokenHeader == "" {
-			w.WriteHeader(http.StatusForbidden)
-			RespondWithMessage(w, "Missing auth token")
+			RespondWithMessage(w, http.StatusForbidden, "Missing auth token")
 			return
 		}
 
 		splitted := strings.Split(tokenHeader, " ")
 		if len(splitted) != 2 {
-			w.WriteHeader(http.StatusForbidden)
-			RespondWithMessage(w, "Malformed auth token")
+			RespondWithMessage(w, http.StatusForbidden, "Malformed auth token")
 			return
 		}
 
@@ -53,14 +52,12 @@ func JWTAuthentication(next http.Handler) http.Handler {
 			return config.secretKey, nil
 		})
 		if err != nil {
-			w.WriteHeader(http.StatusForbidden)
-			RespondWithMessage(w, "Malformed auth token")
+			RespondWithMessage(w, http.StatusForbidden, "Malformed auth token")
 			return
 		}
 
 		if !token.Valid {
-			w.WriteHeader(http.StatusForbidden)
-			RespondWithMessage(w, "Invalid auth token")
+			RespondWithMessage(w, http.StatusForbidden, "Invalid auth token")
 			return
 		}
 
@@ -74,39 +71,54 @@ func JWTAuthentication(next http.Handler) http.Handler {
 	})
 }
 
+type UserCredentials struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func (u UserCredentials) validate() error {
+	emailRe := regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
+	if !emailRe.MatchString(u.Email) {
+		return errors.New("The email address is invalid")
+	}
+
+	if len(u.Password) < 8 {
+		return errors.New("The password has to have at least 8 characters")
+	}
+
+	return nil
+}
+
 // SignUpHandler handles user sign up
 func SignUpHandler(w http.ResponseWriter, r *http.Request) {
-	var account Account
+	var credentials UserCredentials
 
-	err := json.NewDecoder(r.Body).Decode(&account)
+	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		RespondWithMessage(w, "Invalid JSON Payload")
+		RespondWithMessage(w, http.StatusBadRequest, "Invalid JSON Payload")
 		return
 	}
 
-	err = account.validate()
+	err = credentials.validate()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		RespondWithMessage(w, err.Error())
+		RespondWithMessage(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	signUp(account.Email, account.Password, w)
+	signUp(credentials.Email, credentials.Password, w)
 }
 
 func signUp(email string, password string, w http.ResponseWriter) {
-	var existingAccounts = []Account{}
+	var existingAccounts []Account
+
 	err := mgm.Coll(&Account{}).SimpleFind(&existingAccounts, bson.M{"email": email})
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
-		RespondWithMessage(w, "An error occurred")
+		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
 		return
 	}
 	if len(existingAccounts) != 0 {
-		w.WriteHeader(http.StatusForbidden)
-		RespondWithMessage(w, "Account with this email already exists")
+		RespondWithMessage(w, http.StatusForbidden, "Account with this email already exists")
 		return
 	}
 
@@ -118,76 +130,65 @@ func signUp(email string, password string, w http.ResponseWriter) {
 
 	err = mgm.Coll(&account).Create(&account)
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		RespondWithMessage(w, "Error creating account")
+		RespondWithMessage(w, http.StatusForbidden, "Error creating account")
 		return
 	}
 
-	RespondWithMessage(w, "Successfully created account")
+	RespondWithMessage(w, http.StatusOK, "Successfully created account")
 }
 
 // LoginHandler handles user login
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Prevent login from Google Accounts
-	var account Account
+	var credentials UserCredentials
 
-	err := json.NewDecoder(r.Body).Decode(&account)
+	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		RespondWithMessage(w, "Invalid JSON Payload")
+		RespondWithMessage(w, http.StatusBadRequest, "Invalid JSON Payload")
 		return
 	}
 
-	account, err = login(account.Email, account.Password, w)
+	account, token, err := login(credentials.Email, credentials.Password, w)
 	if err != nil {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	err = json.NewEncoder(w).Encode(account)
-	if err != nil {
-		log.Fatalln("Error marshalling data", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	rnd.JSON(w, http.StatusOK, map[string]interface{}{
+		"account": account,
+		"token":   token,
+	})
 }
 
-func login(email string, password string, w http.ResponseWriter) (Account, error) {
+func login(email string, password string, w http.ResponseWriter) (Account, string, error) {
 	var account Account
 
 	err := mgm.Coll(&account).First(bson.M{"email": email}, &account)
 	if err != nil {
-		w.WriteHeader(http.StatusForbidden)
-		RespondWithMessage(w, "Account doesn't exist. Please try again")
-		return Account{}, err
+		RespondWithMessage(w, http.StatusForbidden, "Account doesn't exist. Please try again")
+		return Account{}, "", err
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(password))
 	if err != nil && err == bcrypt.ErrMismatchedHashAndPassword {
-		w.WriteHeader(http.StatusForbidden)
-		RespondWithMessage(w, "Invalid login credentials. Please try again")
-		return Account{}, err
+		RespondWithMessage(w, http.StatusForbidden, "Invalid login credentials. Please try again")
+		return Account{}, "", err
 	}
 
-	err = createToken(&account)
+	token := createToken(account)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
-		RespondWithMessage(w, "An error occurred")
-		return Account{}, err
+		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
+		return Account{}, "", err
 	}
-	return account, nil
+	return account, token, nil
 }
 
-func createToken(account *Account) error {
-	account.Password = ""
-
+func createToken(account Account) string {
 	tokenClaims := &TokenClaims{UserID: account.ID.Hex()}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), tokenClaims)
-	tokenString, _ := token.SignedString([]byte(os.Getenv("SECRET_KEY")))
+	tokenString, _ := token.SignedString(config.secretKey)
 
-	account.Token = tokenString
-	return nil
+	return tokenString
 }
 
 // AuthGoogleLogin redirects user to Google login page
@@ -198,9 +199,8 @@ func AuthGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	session.Values["google_state"] = state
 	err := session.Save(r, w)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
-		RespondWithMessage(w, "An error occurred")
+		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
 		return
 	}
 
@@ -215,16 +215,14 @@ func AuthGoogleRedirect(w http.ResponseWriter, r *http.Request) {
 	retrievedState := session.Values["google_state"]
 
 	if retrievedState != r.URL.Query().Get("state") {
-		w.WriteHeader(http.StatusUnauthorized)
-		RespondWithMessage(w, "Invalid session state")
+		RespondWithMessage(w, http.StatusUnauthorized, "Invalid session state")
 		return
 	}
 
 	userData, err := getUserDataFromGoogle(r.URL.Query().Get("code"))
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		log.Println("Error fetching user data from Google:", err)
-		RespondWithMessage(w, "An error occurred")
+		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
 		return
 	}
 
@@ -233,45 +231,36 @@ func AuthGoogleRedirect(w http.ResponseWriter, r *http.Request) {
 	var existingAccounts = []Account{}
 	err = mgm.Coll(&Account{}).SimpleFind(&existingAccounts, bson.M{"google_user_id": userData.ID})
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		log.Println("", err)
-		RespondWithMessage(w, "An error occurred")
+		log.Println(err)
+		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
 		return
 	}
 	isNewUser := len(existingAccounts) == 0
 
+	var account Account
 	if isNewUser {
-		account := Account{
+		account = Account{
 			Email:        userData.Email,
 			GoogleUserID: userData.ID,
 		}
 
 		err = mgm.Coll(&account).Create(&account)
 		if err != nil {
-			w.WriteHeader(http.StatusForbidden)
-			RespondWithMessage(w, "Error creating account")
+			RespondWithMessage(w, http.StatusForbidden, "Error creating account")
 			return
 		}
-		RespondWithMessage(w, "Successfully created account")
+		RespondWithMessage(w, http.StatusOK, "Successfully created account")
 	} else {
-		account := existingAccounts[0]
+		account = existingAccounts[0]
 
-		err = createToken(&account)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			log.Println(err)
-			RespondWithMessage(w, "An error occurred")
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		err = json.NewEncoder(w).Encode(account)
-		if err != nil {
-			log.Fatalln("Error marshalling data", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 	}
+
+	token := createToken(account)
+	rnd.JSON(w, http.StatusOK, map[string]interface{}{
+		"new_user": isNewUser,
+		"user":     account,
+		"token":    token,
+	})
 }
 
 func randToken() string {
