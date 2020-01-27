@@ -8,7 +8,7 @@ import (
 )
 
 func connectToDB() {
-	err := mgm.SetDefaultConfig(nil, "go-ecommerce-api", options.Client().ApplyURI("mongodb://localhost"))
+	err := mgm.SetDefaultConfig(nil, config.mongoDBDB, options.Client().ApplyURI(config.mongoDBURI))
 	if err != nil {
 		log.Fatalln("Can't connect to database", err)
 	}

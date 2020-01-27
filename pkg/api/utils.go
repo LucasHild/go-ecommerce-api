@@ -18,6 +18,8 @@ func RespondWithMessage(w http.ResponseWriter, status int, message string) {
 type Config struct {
 	secretKey               []byte
 	sessionKey              []byte
+	mongoDBURI              string
+	mongoDBDB               string
 	googleOauthClientID     string
 	googleOauthClientSecret string
 }
@@ -27,4 +29,6 @@ func (c *Config) load() {
 	c.sessionKey = []byte(os.Getenv("SESSION_KEY"))
 	c.googleOauthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	c.googleOauthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+	c.mongoDBURI = os.Getenv("MONGODB_URI")
+	c.mongoDBDB = os.Getenv("MONGODB_DB")
 }
