@@ -14,9 +14,8 @@ type TokenClaims struct {
 	jwt.StandardClaims
 }
 
-// Account is used to store user information
-// TODO: Rename to user
-type Account struct {
+// User is used to store user information
+type User struct {
 	mgm.DefaultModel `bson:",inline"`
 	Email            string `json:"email"`
 	Password         string `json:"-"`
