@@ -16,7 +16,7 @@ type GetProductsResponse struct {
 }
 
 // GetProductsHandler returns all products
-func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 	products := []Product{}
 	err := mgm.Coll(&Product{}).SimpleFind(&products, bson.M{})
 	if err != nil {
@@ -29,7 +29,7 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // AddProductHandler creates a new product
-func AddProductHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) AddProductHandler(w http.ResponseWriter, r *http.Request) {
 	var product Product
 
 	err := json.NewDecoder(r.Body).Decode(&product)
@@ -63,7 +63,7 @@ type GetProductResponse struct {
 }
 
 // GetProductHandler returns product by id
-func GetProductHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetProductHandler(w http.ResponseWriter, r *http.Request) {
 	productID := chi.URLParam(r, "id")
 
 	var product Product
@@ -79,7 +79,7 @@ func GetProductHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteProductHandler deletes a product
-func DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
 	productID := chi.URLParam(r, "id")
 
 	product := Product{}

@@ -5,8 +5,6 @@ import (
 	"os"
 )
 
-var config Config = Config{}
-
 // RespondWithMessage sends message string to response writer
 func RespondWithMessage(w http.ResponseWriter, status int, message string) {
 	rnd.JSON(w, status, map[string]string{
@@ -24,11 +22,13 @@ type Config struct {
 	googleOauthClientSecret string
 }
 
-func (c *Config) load() {
-	c.secretKey = []byte(os.Getenv("SECRET_KEY"))
-	c.sessionKey = []byte(os.Getenv("SESSION_KEY"))
-	c.googleOauthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
-	c.googleOauthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-	c.mongoDBURI = os.Getenv("MONGODB_URI")
-	c.mongoDBDB = os.Getenv("MONGODB_DB")
+func getConfig() Config {
+	return Config{
+		secretKey:               []byte(os.Getenv("SECRET_KEY")),
+		sessionKey:              []byte(os.Getenv("SESSION_KEY")),
+		googleOauthClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
+		googleOauthClientSecret: os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
+		mongoDBURI:              os.Getenv("MONGODB_URI"),
+		mongoDBDB:               os.Getenv("MONGODB_DB"),
+	}
 }

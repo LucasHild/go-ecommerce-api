@@ -26,7 +26,7 @@ const (
 )
 
 // JWTAuthentication is a middleware that checks authentication
-func JWTAuthentication(next http.Handler) http.Handler {
+func (s *Server) JWTAuthentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenHeader := r.Header.Get("Authorization")
 		if tokenHeader == "" {
@@ -43,7 +43,7 @@ func JWTAuthentication(next http.Handler) http.Handler {
 		tokenString := splitted[1]
 		tokenClaims := &TokenClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, tokenClaims, func(token *jwt.Token) (interface{}, error) {
-			return config.secretKey, nil
+			return s.config.secretKey, nil
 		})
 		if err != nil {
 			RespondWithMessage(w, http.StatusForbidden, "Malformed auth token")
@@ -91,7 +91,7 @@ func (u UserCredentials) validate() error {
 }
 
 // SignUpHandler handles user sign up
-func SignUpHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) SignUpHandler(w http.ResponseWriter, r *http.Request) {
 	var credentials UserCredentials
 
 	err := json.NewDecoder(r.Body).Decode(&credentials)
@@ -139,7 +139,7 @@ func signUp(email string, password string, w http.ResponseWriter) {
 }
 
 // LoginHandler handles user login
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Prevent login from Google Users
 	var credentials UserCredentials
 
@@ -149,7 +149,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, token, err := login(credentials.Email, credentials.Password, w)
+	user, token, err := login(credentials.Email, credentials.Password, w, s)
 	if err != nil {
 		return
 	}
@@ -160,7 +160,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func login(email string, password string, w http.ResponseWriter) (User, string, error) {
+func login(email string, password string, w http.ResponseWriter, s *Server) (User, string, error) {
 	var user User
 
 	err := mgm.Coll(&user).First(bson.M{"email": email}, &user)
@@ -175,7 +175,7 @@ func login(email string, password string, w http.ResponseWriter) (User, string, 
 		return User{}, "", err
 	}
 
-	token := createToken(user)
+	token := createToken(user, s.config.secretKey)
 	if err != nil {
 		log.Println(err)
 		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
@@ -184,19 +184,19 @@ func login(email string, password string, w http.ResponseWriter) (User, string, 
 	return user, token, nil
 }
 
-func createToken(user User) string {
+func createToken(user User, secretKey []byte) string {
 	tokenClaims := &TokenClaims{UserID: user.ID.Hex()}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), tokenClaims)
-	tokenString, _ := token.SignedString(config.secretKey)
+	tokenString, _ := token.SignedString(secretKey)
 
 	return tokenString
 }
 
 // AuthGoogleLogin redirects user to Google login page
-func AuthGoogleLogin(w http.ResponseWriter, r *http.Request) {
+func (s *Server) AuthGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	state := randToken()
 
-	session, _ := cookieStore.Get(r, "google_state")
+	session, _ := s.cookieStore.Get(r, "google_state")
 	session.Values["google_state"] = state
 	err := session.Save(r, w)
 	if err != nil {
@@ -205,14 +205,14 @@ func AuthGoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURL := googleOauthConf.AuthCodeURL(state)
+	redirectURL := s.googleOauthConf.AuthCodeURL(state)
 
 	http.Redirect(w, r, redirectURL, 302)
 }
 
 // AuthGoogleRedirect handles redirect from Google and signs in user
-func AuthGoogleRedirect(w http.ResponseWriter, r *http.Request) {
-	session, _ := cookieStore.Get(r, "google_state")
+func (s *Server) AuthGoogleRedirect(w http.ResponseWriter, r *http.Request) {
+	session, _ := s.cookieStore.Get(r, "google_state")
 	retrievedState := session.Values["google_state"]
 
 	if retrievedState != r.URL.Query().Get("state") {
@@ -220,7 +220,7 @@ func AuthGoogleRedirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userData, err := getUserDataFromGoogle(r.URL.Query().Get("code"))
+	userData, err := getUserDataFromGoogle(r.URL.Query().Get("code"), s.googleOauthConf)
 	if err != nil {
 		log.Println("Error fetching user data from Google:", err)
 		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
@@ -256,7 +256,7 @@ func AuthGoogleRedirect(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	token := createToken(user)
+	token := createToken(user, s.config.secretKey)
 	rnd.JSON(w, http.StatusOK, map[string]interface{}{
 		"new_user": isNewUser,
 		"user":     user,
@@ -275,13 +275,13 @@ type googleUserData struct {
 	Email string `json:"email"`
 }
 
-func getUserDataFromGoogle(code string) (googleUserData, error) {
-	tok, err := googleOauthConf.Exchange(oauth2.NoContext, code)
+func getUserDataFromGoogle(code string, oauth *oauth2.Config) (googleUserData, error) {
+	tok, err := oauth.Exchange(oauth2.NoContext, code)
 	if err != nil {
 		return googleUserData{}, err
 	}
 
-	client := googleOauthConf.Client(oauth2.NoContext, tok)
+	client := oauth.Client(oauth2.NoContext, tok)
 	content, err := client.Get("https://www.googleapis.com/oauth2/v3/userinfo")
 	if err != nil {
 		return googleUserData{}, err
