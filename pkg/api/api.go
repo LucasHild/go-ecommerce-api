@@ -56,9 +56,10 @@ func (s *Server) init() {
 }
 
 // HomeHandler gives basic details about API
-func (s *Server) HomeHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HomeHandler(w http.ResponseWriter, r *http.Request) error {
 	rnd.JSON(w, http.StatusOK, map[string]string{
 		"project": "go-ecommerce-api",
 		"version": "v0",
 	})
+	return nil
 }

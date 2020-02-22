@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 	"regexp"
@@ -30,13 +29,13 @@ func (s *Server) JWTAuthentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenHeader := r.Header.Get("Authorization")
 		if tokenHeader == "" {
-			RespondWithMessage(w, http.StatusForbidden, "Missing auth token")
+			rnd.JSON(w, http.StatusForbidden, UserError{http.StatusForbidden, "Missing auth token", nil})
 			return
 		}
 
 		splitted := strings.Split(tokenHeader, " ")
 		if len(splitted) != 2 {
-			RespondWithMessage(w, http.StatusForbidden, "Malformed auth token")
+			rnd.JSON(w, http.StatusForbidden, UserError{http.StatusForbidden, "Malformed auth token", nil})
 			return
 		}
 
@@ -46,20 +45,19 @@ func (s *Server) JWTAuthentication(next http.Handler) http.Handler {
 			return s.config.secretKey, nil
 		})
 		if err != nil {
-			RespondWithMessage(w, http.StatusForbidden, "Malformed auth token")
+			rnd.JSON(w, http.StatusForbidden, UserError{http.StatusForbidden, "Malformed auth token", nil})
 			return
 		}
 
 		if !token.Valid {
-			RespondWithMessage(w, http.StatusForbidden, "Invalid auth token")
+			rnd.JSON(w, http.StatusForbidden, UserError{http.StatusForbidden, "Invalid auth token", nil})
 			return
 		}
 
 		var user User
 		err = mgm.Coll(&User{}).FindByID(tokenClaims.UserID, &user)
 		if err != nil {
-			log.Println(err)
-			RespondWithMessage(w, http.StatusForbidden, "This user doesn't exist")
+			rnd.JSON(w, http.StatusForbidden, UserError{http.StatusForbidden, "This user doesn't exist", nil})
 			return
 		}
 
@@ -80,50 +78,53 @@ type UserCredentials struct {
 func (u UserCredentials) validate() error {
 	emailRe := regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
 	if !emailRe.MatchString(u.Email) {
-		return errors.New("The email address is invalid")
+		return UserError{http.StatusBadRequest, "The email address is invalid", nil}
 	}
 
 	if len(u.Password) < 8 {
-		return errors.New("The password has to have at least 8 characters")
+		return UserError{http.StatusBadRequest, "The password has to have at least 8 characters", nil}
 	}
 
 	return nil
 }
 
 // SignUpHandler handles user sign up
-func (s *Server) SignUpHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) SignUpHandler(w http.ResponseWriter, r *http.Request) error {
 	var credentials UserCredentials
 
 	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
-		RespondWithMessage(w, http.StatusBadRequest, "Invalid JSON Payload")
-		return
+		return UserError{http.StatusBadRequest, "Invalid JSON Payload", err}
 	}
 
 	err = credentials.validate()
 	if err != nil {
-		RespondWithMessage(w, http.StatusBadRequest, err.Error())
-		return
+		return err
 	}
 
-	signUp(credentials.Email, credentials.Password, w)
+	user, err := signUp(credentials.Email, credentials.Password)
+	if err != nil {
+		return err
+	}
+
+	rnd.JSON(w, http.StatusOK, map[string]interface{}{
+		"user": user,
+	})
+	return nil
 }
 
-func signUp(email string, password string, w http.ResponseWriter) {
+func signUp(email string, password string) (user User, err error) {
 	var existingUsers []User
 
-	err := mgm.Coll(&User{}).SimpleFind(&existingUsers, bson.M{"email": email})
+	err = mgm.Coll(&User{}).SimpleFind(&existingUsers, bson.M{"email": email})
 	if err != nil {
-		log.Println(err)
-		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
-		return
+		return user, err
 	}
 	if len(existingUsers) != 0 {
-		RespondWithMessage(w, http.StatusForbidden, "User with this email already exists")
-		return
+		return user, UserError{http.StatusForbidden, "User with this email already exists", err}
 	}
 
-	user := User{
+	user = User{
 		Email: email,
 	}
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -131,54 +132,47 @@ func signUp(email string, password string, w http.ResponseWriter) {
 
 	err = mgm.Coll(&user).Create(&user)
 	if err != nil {
-		RespondWithMessage(w, http.StatusForbidden, "Error creating user")
-		return
+		return user, err
 	}
 
-	RespondWithMessage(w, http.StatusOK, "Successfully created user")
+	return user, nil
 }
 
 // LoginHandler handles user login
-func (s *Server) LoginHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) LoginHandler(w http.ResponseWriter, r *http.Request) error {
 	// TODO: Prevent login from Google Users
 	var credentials UserCredentials
 
 	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
-		RespondWithMessage(w, http.StatusBadRequest, "Invalid JSON Payload")
-		return
+		return UserError{http.StatusBadRequest, "Invalid JSON Payload", err}
 	}
 
-	user, token, err := login(credentials.Email, credentials.Password, w, s)
+	user, token, err := login(credentials.Email, credentials.Password, s)
 	if err != nil {
-		return
+		return err
 	}
 
 	rnd.JSON(w, http.StatusOK, map[string]interface{}{
 		"user":  user,
 		"token": token,
 	})
+	return nil
 }
 
-func login(email string, password string, w http.ResponseWriter, s *Server) (User, string, error) {
-	var user User
-
-	err := mgm.Coll(&user).First(bson.M{"email": email}, &user)
+func login(email string, password string, s *Server) (user User, token string, err error) {
+	err = mgm.Coll(&user).First(bson.M{"email": email}, &user)
 	if err != nil {
-		RespondWithMessage(w, http.StatusForbidden, "User doesn't exist. Please try again")
-		return User{}, "", err
+		return User{}, "", UserError{http.StatusForbidden, "User doesn't exist", err}
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil && err == bcrypt.ErrMismatchedHashAndPassword {
-		RespondWithMessage(w, http.StatusForbidden, "Invalid login credentials. Please try again")
-		return User{}, "", err
+		return User{}, "", UserError{http.StatusForbidden, "Invalid login credentials", err}
 	}
 
-	token := createToken(user, s.config.secretKey)
+	token = createToken(user, s.config.secretKey)
 	if err != nil {
-		log.Println(err)
-		RespondWithMessage(w, http.StatusInternalServerError, "An error occurred")
 		return User{}, "", err
 	}
 	return user, token, nil
